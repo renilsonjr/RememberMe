@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pytest (watch)",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "pytest", "test_reader.py", "-v", "--tb=short"],
+      "port": null
+    }
+  ]
+}
