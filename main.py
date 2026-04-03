@@ -30,7 +30,7 @@ def run():
 
     print("-" * 52)
     print("Creating Google Calendar events...")
-    event_ids = create_calendar_events(upcoming)
+    event_ids = create_calendar_events(upcoming, all_payments=payments)
     print(f"✅ {len(event_ids)} event(s) created.")
 
 

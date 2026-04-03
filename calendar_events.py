@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from collections import defaultdict
 from datetime import date
 
 from google.oauth2.credentials import Credentials
@@ -34,10 +33,10 @@ def _build_service(credentials_file: str = "credentials.json"):
     return build("calendar", "v3", credentials=creds)
 
 
-def _payments_left(payments: list[dict], creditor: str, current_index_in_group: int) -> int:
-    """Return the number of payments remaining after the current one for a creditor."""
-    creditor_payments = [p for p in payments if p["creditor"] == creditor]
-    return len(creditor_payments) - current_index_in_group - 1
+def _payments_left(all_payments: list[dict], creditor: str, payment_num: int) -> int:
+    """Return the number of payments remaining after payment_num for a creditor."""
+    total = sum(1 for p in all_payments if p["creditor"] == creditor)
+    return total - payment_num
 
 
 def _build_event(payment: dict, payments_remaining: int) -> dict:
@@ -79,28 +78,27 @@ def _build_event(payment: dict, payments_remaining: int) -> dict:
 
 def create_calendar_events(
     payments: list[dict],
+    all_payments: list[dict] | None = None,
     credentials_file: str = "credentials.json",
 ) -> list[str]:
     """
-    Create a Google Calendar event for each payment.
+    Create a Google Calendar event for each payment in `payments`.
+
+    `all_payments` is the full schedule (all creditors, all dates) and is used
+    to calculate how many payments remain per creditor.  When omitted it
+    defaults to `payments`, which is correct when the full list is passed in.
 
     Returns a list of created event IDs.
     """
     if not payments:
         return []
 
+    schedule = all_payments if all_payments is not None else payments
     service = _build_service(credentials_file)
-
-    # Track per-creditor position to compute payments_left
-    creditor_counters: dict[str, int] = defaultdict(int)
 
     event_ids = []
     for payment in payments:
-        creditor = payment["creditor"]
-        idx_in_group = creditor_counters[creditor]
-        remaining = _payments_left(payments, creditor, idx_in_group)
-        creditor_counters[creditor] += 1
-
+        remaining = _payments_left(schedule, payment["creditor"], payment["payment_num"])
         body = _build_event(payment, remaining)
         result = service.events().insert(calendarId="primary", body=body).execute()
         event_ids.append(result.get("id"))

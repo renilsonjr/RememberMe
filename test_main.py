@@ -70,7 +70,7 @@ class TestCreateCalendarEvents:
              patch("main.get_upcoming_payments", return_value=UPCOMING), \
              patch("main.create_calendar_events", return_value=["id1", "id2"]) as mock_create:
             main_module.run()
-        mock_create.assert_called_once_with(UPCOMING)
+        mock_create.assert_called_once_with(UPCOMING, all_payments=ALL_PAYMENTS)
 
     def test_not_called_when_no_upcoming(self, capsys):
         with patch("main.load_payments", return_value=ALL_PAYMENTS), \

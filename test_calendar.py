@@ -250,3 +250,62 @@ class TestEventDate:
             create_calendar_events(SAMPLE_PAYMENTS[:1])
         body = _get_inserted_body(service)
         assert body["end"]["date"] == body["start"]["date"]
+
+
+# ---------------------------------------------------------------------------
+# 6. Payments-left with full schedule (regression for subset-passed-as-all bug)
+# ---------------------------------------------------------------------------
+
+def _make_schedule(creditor, total, amount=100.0):
+    """Build a full payment schedule of `total` payments for one creditor."""
+    balance = amount * total
+    payments = []
+    for i in range(1, total + 1):
+        payments.append({
+            "creditor": creditor,
+            "payment_num": i,
+            "amount": amount,
+            "due_date": date(2026, 4, i),
+            "balance_before": balance - amount * (i - 1),
+            "balance_after": balance - amount * i,
+        })
+    return payments
+
+
+class TestPaymentsLeftFromFullSchedule:
+    """
+    Verify that payments_left is computed against the FULL schedule, not just
+    whichever subset is passed as the `payments` argument.  These tests call
+    create_calendar_events(upcoming, all_payments=full_schedule) — a parameter
+    that does not yet exist, so all three tests must fail (Red) before the fix.
+    """
+
+    def test_mid_series_payment_shows_correct_payments_left(self):
+        """Payment #3 of 10 → 7 payments left."""
+        full = _make_schedule("Lender X", 10)
+        upcoming = [full[2]]          # payment_num == 3
+        service = _make_service()
+        with patch("calendar_events._build_service", return_value=service):
+            create_calendar_events(upcoming, all_payments=full)
+        desc = _get_inserted_body(service)["description"]
+        assert "7 payment" in desc
+
+    def test_final_payment_shows_zero_payments_left(self):
+        """Last payment of 10 → 0 payments left."""
+        full = _make_schedule("Lender X", 10)
+        upcoming = [full[-1]]         # payment_num == 10
+        service = _make_service()
+        with patch("calendar_events._build_service", return_value=service):
+            create_calendar_events(upcoming, all_payments=full)
+        desc = _get_inserted_body(service)["description"]
+        assert "0 payment" in desc
+
+    def test_first_of_six_shows_five_payments_left(self):
+        """Payment #1 of 6 → 5 payments left."""
+        full = _make_schedule("Lender X", 6)
+        upcoming = [full[0]]          # payment_num == 1
+        service = _make_service()
+        with patch("calendar_events._build_service", return_value=service):
+            create_calendar_events(upcoming, all_payments=full)
+        desc = _get_inserted_body(service)["description"]
+        assert "5 payment" in desc
