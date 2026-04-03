@@ -1,7 +1,16 @@
-__pycache__/
-*.pyc
-.DS_Store
-.pytest_cache/
+# secrets & auth
 credentials.json
 token.json
+.env
+
+# data file (copy locally, never commit)
+settlement_tracker.xlsx
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# macOS
+.DS_Store
 ~$*
