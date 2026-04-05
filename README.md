@@ -43,18 +43,47 @@ RememberMe/
 pip3 install -r requirements.txt
 ```
 
-### 2. Prepare your spreadsheet
+### 2. Set up your data
 
-Copy your payment spreadsheet into the project folder and name it `RememberMe.xlsx`.
+**Step 1 — Download the template**
 
-The spreadsheet must have **3 header rows** (skipped automatically), with data starting at row 4 in this column order:
+Download `RememberMe_template.xlsx` from the repo and rename it to `RememberMe.xlsx`.
 
-| Creditor | Payment # | Amount | Due Date | Balance Before | Balance After |
-|----------|-----------|--------|----------|----------------|---------------|
+**Step 2 — Fill in the BLUE columns only**
 
-Blank rows between creditors are ignored. The "Balance After" column can contain formulas — RememberMe computes it as `balance_before - amount` if the cell reads as empty.
+| Column | Name | What to enter |
+|--------|------|---------------|
+| A | Creditor Name | The name of the lender or creditor (e.g. "SPOTLOAN") |
+| B | Payment # | The payment number in sequence: 1, 2, 3… |
+| C | Payment Amount | The dollar amount of this payment |
+| D | Due Date | The date this payment is due |
+| E | Balance Before | The balance owed before this payment is made |
 
-### 3. Connect Google Calendar
+**Step 3 — Leave the grey column alone**
+
+| Column | Name | Notes |
+|--------|------|-------|
+| F | Balance After | Auto-calculated — do not edit |
+
+RememberMe reads this column as a formula. If the cell is empty it computes `Balance Before − Payment Amount` automatically.
+
+**Step 4 — Follow these rules**
+
+- One row per payment — enter the **entire schedule upfront**, not just the next payment
+- Leave a **blank row between each creditor** to visually separate them (blank rows are ignored when reading)
+- Place the completed file in the **project root folder**, the same level as `main.py`
+
+```
+settlement-tracker/
+├── RememberMe.xlsx   ← here
+├── main.py
+├── reader.py
+└── ...
+```
+
+---
+
+### 4. Connect Google Calendar
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services** → **Credentials**
 2. Enable the **Google Calendar API** for your project
