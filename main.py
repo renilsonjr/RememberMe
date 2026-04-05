@@ -4,7 +4,7 @@ import os
 from reader import load_payments, get_upcoming_payments
 from calendar_events import create_calendar_events
 
-XLSX_FILE = os.path.join(os.path.dirname(__file__), "settlement_tracker.xlsx")
+XLSX_FILE = os.path.join(os.path.dirname(__file__), "RememberMe.xlsx")
 
 
 def run():

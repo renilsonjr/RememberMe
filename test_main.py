@@ -50,7 +50,7 @@ class TestLoadPayments:
              patch("main.create_calendar_events", return_value=[]):
             main_module.run()
         mock_load.assert_called_once()
-        assert mock_load.call_args.args[0].endswith("settlement_tracker.xlsx")
+        assert mock_load.call_args.args[0].endswith("RememberMe.xlsx")
 
     def test_load_payments_result_passed_to_upcoming(self, capsys):
         with patch("main.load_payments", return_value=ALL_PAYMENTS) as mock_load, \

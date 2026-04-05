@@ -4,6 +4,7 @@ token.json
 .env
 
 # data file (copy locally, never commit)
+RememberMe.xlsx
 settlement_tracker.xlsx
 
 # python

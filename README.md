@@ -1,47 +1,69 @@
-# Settlement Tracker
+# RememberMe
 
-Reads a debt-settlement payment schedule from an Excel spreadsheet and creates Google Calendar events for any payments due in the next 14 days, with pop-up reminders at 7 and 14 days in advance.
+Never miss a debt payment again.
 
-## How it works
+RememberMe reads your settlement spreadsheet and automatically creates Google Calendar events with reminders — so every upcoming payment shows up on your calendar 14 and 7 days before it's due.
 
-1. **`reader.py`** — loads `settlement_tracker.xlsx`, parses the payment schedule (creditor, amount, due date, running balance), and filters for upcoming payments within a configurable window.
-2. **`calendar_events.py`** — authenticates with the Google Calendar API via OAuth 2.0 and creates a calendar event for each upcoming payment. Final payments are flagged with a ✅ in the event title.
-3. **`main.py`** — ties it together: load → filter → print summary → create events.
+---
 
-## Spreadsheet format
+## What it does
 
-The workbook must have **3 header rows** followed by data rows with these columns (in order):
+1. Reads all your payments from `RememberMe.xlsx`
+2. Finds payments due within the next 14 days
+3. Creates a Google Calendar event for each one with:
+   - The creditor name, amount, and due date in the title
+   - Balance remaining and payments left in the description
+   - Popup reminders 14 days and 7 days before the due date
+   - A special ✅ title for your final payment on each debt
 
-| Column | Description |
-|---|---|
-| A | Creditor name |
-| B | Payment number |
-| C | Payment amount |
-| D | Due date |
-| E | Balance before payment |
-| F | Balance after payment (formula cells are handled automatically) |
+---
 
-Blank rows between creditor groups are ignored.
+## Project structure
+
+```
+RememberMe/
+├── RememberMe.xlsx          ← your payment spreadsheet (not committed)
+├── reader.py                ← reads and filters payments from xlsx
+├── calendar_events.py       ← creates Google Calendar events
+├── main.py                  ← entry point, ties everything together
+├── test_reader.py           ← tests for reader.py
+├── test_calendar.py         ← tests for calendar_events.py (mocked API)
+├── test_main.py             ← integration tests for main.py
+├── smoke_test_calendar.py   ← manual API connection test
+└── requirements.txt
+```
+
+---
 
 ## Setup
 
 ### 1. Install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
 
-### 2. Google Calendar credentials
+### 2. Prepare your spreadsheet
 
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/) and create a project.
-2. Enable the **Google Calendar API**.
-3. Create **OAuth 2.0 credentials** (Desktop app) and download the file as `credentials.json` in the project root.
+Copy your payment spreadsheet into the project folder and name it `RememberMe.xlsx`.
 
-On first run, a browser window will open for you to authorize access. The token is saved to `token.json` and reused on subsequent runs.
+The spreadsheet must have **3 header rows** (skipped automatically), with data starting at row 4 in this column order:
 
-### 3. Add your spreadsheet
+| Creditor | Payment # | Amount | Due Date | Balance Before | Balance After |
+|----------|-----------|--------|----------|----------------|---------------|
 
-Copy your `settlement_tracker.xlsx` file into the project root. It is gitignored and never committed.
+Blank rows between creditors are ignored. The "Balance After" column can contain formulas — RememberMe computes it as `balance_before - amount` if the cell reads as empty.
+
+### 3. Connect Google Calendar
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services** → **Credentials**
+2. Enable the **Google Calendar API** for your project
+3. Create an **OAuth 2.0 Client ID** (Desktop app type)
+4. Download the JSON file and save it as `credentials.json` in the project folder
+
+On first run, a browser window will open for you to authorize access. A `token.json` file is saved automatically for future runs — no repeated sign-ins.
+
+---
 
 ## Usage
 
@@ -54,32 +76,55 @@ Example output:
 ```
 Upcoming payments (2 found):
 ----------------------------------------------------
-  Bank A  |  $200.00 due 2026-04-05  |  Balance after: $800.00
-  Credit Union B  |  $150.00 due 2026-04-08  |  Balance after: $0.00  ← FINAL PAYMENT
+  MCM        |  $44.35 due 2026-04-07  |  Balance after: $886.90
+  SPOTLOAN   |  $24.17 due 2026-04-10  |  Balance after: $199.40
 ----------------------------------------------------
 Creating Google Calendar events...
 ✅ 2 event(s) created.
 ```
 
+### Verify the API connection
+
+Before running for real, you can create a single test event to confirm your credentials work:
+
+```bash
+python3 smoke_test_calendar.py
+```
+
+This creates one event titled **"🧪 TEST EVENT - DELETE ME"** on today's date. Check your calendar and delete it once confirmed.
+
+---
+
 ## Running tests
 
 ```bash
-pytest
+pytest test_reader.py test_calendar.py test_main.py -v
 ```
 
-Tests cover the Excel reader, upcoming-payment filtering, paid-off detection, and calendar event building — all without requiring real files or a live Google API connection.
+All Google Calendar API calls are mocked — no credentials needed to run tests.
 
-## Files
+```
+58 passed in 0.29s
+```
 
-| File | Purpose |
-|---|---|
-| `main.py` | Entry point |
-| `reader.py` | Excel parsing and payment filtering |
-| `calendar_events.py` | Google Calendar API integration |
-| `test_reader.py` | Unit tests for the reader |
-| `test_calendar.py` | Unit tests for calendar event building |
-| `test_main.py` | Integration tests for the main flow |
-| `smoke_test_calendar.py` | Manual smoke test against the live Calendar API |
-| `settlement_tracker.xlsx` | Your data file — **gitignored, add locally** |
-| `credentials.json` | Google OAuth credentials — **gitignored** |
-| `token.json` | Saved OAuth token — **gitignored** |
+---
+
+## Security notes
+
+The following files are excluded from version control via `.gitignore`:
+
+- `credentials.json` — your Google OAuth client secret
+- `token.json` — your saved access token
+- `RememberMe.xlsx` — your personal payment data
+- `.env` — any local environment overrides
+
+Never commit these files.
+
+---
+
+## Requirements
+
+- Python 3.10+
+- `openpyxl` — reads the xlsx spreadsheet
+- `google-auth`, `google-auth-oauthlib`, `google-api-python-client` — Google Calendar integration
+- `pytest` — test runner
