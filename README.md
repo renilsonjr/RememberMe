@@ -2,19 +2,19 @@
 
 Never miss a debt payment again.
 
-RememberMe reads your settlement spreadsheet and automatically creates Google Calendar events with reminders — so every upcoming payment shows up on your calendar 14 and 7 days before it's due.
+RememberMe reads your settlement spreadsheet and automatically creates Google Calendar events with reminders — so every upcoming payment shows up on your calendar 14 and 7 days before it's due. It also includes a web dashboard for managing all your creditors in one place.
 
 ---
 
-## What it does
+## Features
 
-1. Reads all your payments from `RememberMe.xlsx`
-2. Finds payments due within the next 14 days
-3. Creates a Google Calendar event for each one with:
-   - The creditor name, amount, and due date in the title
-   - Balance remaining and payments left in the description
-   - Popup reminders 14 days and 7 days before the due date
-   - A special ✅ title for your final payment on each debt
+- Reads payment schedules from `RememberMe.xlsx`
+- Creates Google Calendar events with 14-day and 7-day popup reminders
+- Web dashboard at `localhost:5000` showing all creditors at a glance
+- Payments due within 14 days highlighted in yellow
+- Add new settlements via web form — auto-generates the full payment schedule
+- Remove settlements directly from the dashboard with a confirmation prompt
+- Paid off creditors shown with a green badge
 
 ---
 
@@ -22,15 +22,20 @@ RememberMe reads your settlement spreadsheet and automatically creates Google Ca
 
 ```
 RememberMe/
-├── RememberMe.xlsx          ← your payment spreadsheet (not committed)
-├── reader.py                ← reads and filters payments from xlsx
-├── calendar_events.py       ← creates Google Calendar events
-├── main.py                  ← entry point, ties everything together
-├── test_reader.py           ← tests for reader.py
-├── test_calendar.py         ← tests for calendar_events.py (mocked API)
-├── test_main.py             ← integration tests for main.py
-├── smoke_test_calendar.py   ← manual API connection test
-└── requirements.txt
+├── app.py                    ← web dashboard
+├── main.py                   ← terminal calendar sync
+├── reader.py                 ← reads Excel data
+├── calendar_events.py        ← Google Calendar integration
+├── excel_writer.py           ← adds/removes settlements in Excel
+├── templates/
+│   └── index.html            ← dashboard UI
+├── RememberMe_template.xlsx  ← template for new users
+├── requirements.txt
+├── test_app.py
+├── test_calendar.py
+├── test_excel_writer.py
+├── test_main.py
+└── test_reader.py
 ```
 
 ---
@@ -71,19 +76,19 @@ RememberMe reads this column as a formula. If the cell is empty it computes `Bal
 
 - One row per payment — enter the **entire schedule upfront**, not just the next payment
 - Leave a **blank row between each creditor** to visually separate them (blank rows are ignored when reading)
-- Place the completed file in the **project root folder**, the same level as `main.py`
+- Place the completed file in the **project root folder**, the same level as `app.py`
 
 ```
-settlement-tracker/
+RememberMe/
 ├── RememberMe.xlsx   ← here
-├── main.py
+├── app.py
 ├── reader.py
 └── ...
 ```
 
 ---
 
-### 4. Connect Google Calendar
+### 3. Connect Google Calendar
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services** → **Credentials**
 2. Enable the **Google Calendar API** for your project
@@ -94,7 +99,17 @@ On first run, a browser window will open for you to authorize access. A `token.j
 
 ---
 
-## Usage
+## Running the app
+
+**Web dashboard** (recommended):
+
+```bash
+python3 app.py
+```
+
+Then open `http://localhost:5000` in your browser. From the dashboard you can view all creditors, add new settlements, remove existing ones, and sync to Google Calendar.
+
+**Terminal calendar sync only:**
 
 ```bash
 python3 main.py
@@ -112,6 +127,18 @@ Creating Google Calendar events...
 ✅ 2 event(s) created.
 ```
 
+**Run the test suite:**
+
+```bash
+pytest
+```
+
+All Google Calendar API calls are mocked — no credentials needed to run tests.
+
+```
+124 passed in 0.54s
+```
+
 ### Verify the API connection
 
 Before running for real, you can create a single test event to confirm your credentials work:
@@ -121,20 +148,6 @@ python3 smoke_test_calendar.py
 ```
 
 This creates one event titled **"🧪 TEST EVENT - DELETE ME"** on today's date. Check your calendar and delete it once confirmed.
-
----
-
-## Running tests
-
-```bash
-pytest test_reader.py test_calendar.py test_main.py -v
-```
-
-All Google Calendar API calls are mocked — no credentials needed to run tests.
-
-```
-58 passed in 0.29s
-```
 
 ---
 
@@ -154,6 +167,7 @@ Never commit these files.
 ## Requirements
 
 - Python 3.10+
-- `openpyxl` — reads the xlsx spreadsheet
+- `flask` — web dashboard
+- `openpyxl` — reads and writes the xlsx spreadsheet
 - `google-auth`, `google-auth-oauthlib`, `google-api-python-client` — Google Calendar integration
 - `pytest` — test runner
