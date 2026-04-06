@@ -7,7 +7,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 
 from reader import load_payments, get_upcoming_payments
 from calendar_events import create_calendar_events
-from excel_writer import generate_payment_rows, append_to_excel
+from excel_writer import generate_payment_rows, append_to_excel, remove_creditor
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "rememberme-dev-secret")
@@ -108,6 +108,21 @@ def add_settlement():
     append_to_excel(rows, app.config["XLSX_FILE"])
 
     flash(f"Added {len(rows)} payments for {creditor_name}.", "success")
+    return redirect(url_for("index"))
+
+
+@app.route("/delete-settlement", methods=["POST"])
+def delete_settlement():
+    creditor_name = request.form.get("creditor_name", "").strip()
+    if not creditor_name:
+        return "Missing creditor_name", 400
+
+    try:
+        remove_creditor(creditor_name, app.config["XLSX_FILE"])
+        flash(f"Removed all payments for {creditor_name}.", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+
     return redirect(url_for("index"))
 
 

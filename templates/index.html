@@ -142,6 +142,22 @@
     }
     .submit-btn:hover { background: #162b4d; }
 
+    .remove-btn {
+      background: none;
+      border: none;
+      color: #e53935;
+      padding: 0.2rem 0.4rem;
+      border-radius: 5px;
+      font-size: 1.1rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .remove-btn:hover { background: #fdecea; }
+
+    th.col-action, td.col-action { width: 36px; text-align: center; padding-left: 0.3rem; padding-right: 0.3rem; }
+    th.col-status { width: 90px; }
+    th.col-payments { width: 100px; }
+
     .empty-state {
       text-align: center;
       padding: 2.5rem 1rem;
@@ -185,8 +201,9 @@
           <th>Next Payment</th>
           <th>Amount</th>
           <th>Balance</th>
-          <th>Payments Left</th>
-          <th>Status</th>
+          <th class="col-payments">Payments Left</th>
+          <th class="col-status">Status</th>
+          <th class="col-action"></th>
         </tr>
       </thead>
       <tbody>
@@ -214,6 +231,13 @@
             {% else %}
               Upcoming
             {% endif %}
+          </td>
+          <td class="col-action">
+            <form method="POST" action="/delete-settlement"
+                  onsubmit="return confirm('Are you sure you want to remove {{ s.creditor }} and all its payments? This cannot be undone.')">
+              <input type="hidden" name="creditor_name" value="{{ s.creditor }}">
+              <button type="submit" class="remove-btn" title="Remove {{ s.creditor }}">🗑️</button>
+            </form>
           </td>
         </tr>
         {% endfor %}

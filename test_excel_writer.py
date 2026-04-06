@@ -3,7 +3,7 @@ import shutil
 from datetime import date
 from pathlib import Path
 
-from excel_writer import generate_payment_rows, append_to_excel
+from excel_writer import generate_payment_rows, append_to_excel, remove_creditor
 
 
 # ---------------------------------------------------------------------------
@@ -203,3 +203,75 @@ class TestAppendToExcel:
         assert len(rt) == 4
         assert rt[0]["amount"] == pytest.approx(100.0)
         assert rt[-1]["amount"] == pytest.approx(50.0)
+
+
+# ---------------------------------------------------------------------------
+# 3. remove_creditor
+# ---------------------------------------------------------------------------
+
+class TestRemoveCreditor:
+
+    def test_creditor_rows_fully_removed(self, tmp_path):
+        from reader import load_payments
+        filepath = _make_xlsx(tmp_path)
+        # Append a creditor we will then delete
+        rows = generate_payment_rows("DELETE ME", 200.0, 100.0, date(2026, 6, 1))
+        append_to_excel(rows, filepath)
+        assert any(p["creditor"] == "DELETE ME" for p in load_payments(filepath))
+        remove_creditor("DELETE ME", filepath)
+        remaining = load_payments(filepath)
+        assert not any(p["creditor"] == "DELETE ME" for p in remaining)
+
+    def test_other_creditors_untouched(self, tmp_path):
+        from reader import load_payments
+        filepath = _make_xlsx(tmp_path)
+        before = {p["creditor"] for p in load_payments(filepath)}
+        # Append two new creditors
+        append_to_excel(
+            generate_payment_rows("KEEP ME", 200.0, 100.0, date(2026, 6, 1)),
+            filepath,
+        )
+        append_to_excel(
+            generate_payment_rows("REMOVE ME", 200.0, 100.0, date(2026, 7, 1)),
+            filepath,
+        )
+        remove_creditor("REMOVE ME", filepath)
+        after = {p["creditor"] for p in load_payments(filepath)}
+        # All original creditors still present
+        assert before.issubset(after)
+        # KEEP ME still present
+        assert "KEEP ME" in after
+        # REMOVE ME gone
+        assert "REMOVE ME" not in after
+
+    def test_removing_nonexistent_creditor_raises(self, tmp_path):
+        filepath = _make_xlsx(tmp_path)
+        with pytest.raises(ValueError, match="not found"):
+            remove_creditor("GHOST CREDITOR", filepath)
+
+    def test_file_not_found_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            remove_creditor("ANY", str(tmp_path / "missing.xlsx"))
+
+    def test_row_count_decreases_by_payment_count(self, tmp_path):
+        from reader import load_payments
+        filepath = _make_xlsx(tmp_path)
+        new_rows = generate_payment_rows("TRANSIENT", 300.0, 100.0, date(2026, 6, 1))
+        append_to_excel(new_rows, filepath)
+        before_count = len(load_payments(filepath))
+        remove_creditor("TRANSIENT", filepath)
+        after_count = len(load_payments(filepath))
+        assert after_count == before_count - len(new_rows)
+
+    def test_no_orphan_blank_rows_leave_gaps(self, tmp_path):
+        """After deletion the file should still load cleanly with no phantom rows."""
+        from reader import load_payments
+        filepath = _make_xlsx(tmp_path)
+        append_to_excel(
+            generate_payment_rows("FLEETING", 100.0, 100.0, date(2026, 6, 1)),
+            filepath,
+        )
+        remove_creditor("FLEETING", filepath)
+        # load_payments must not crash and must return only real rows
+        payments = load_payments(filepath)
+        assert all(p["creditor"] is not None for p in payments)

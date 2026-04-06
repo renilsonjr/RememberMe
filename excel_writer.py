@@ -139,6 +139,57 @@ def append_to_excel(
     wb.save(filepath)
 
 
+def remove_creditor(
+    creditor_name: str,
+    filepath: str = "RememberMe.xlsx",
+) -> None:
+    """
+    Remove all rows belonging to creditor_name from the Excel file.
+
+    Also removes any blank separator rows that become orphaned directly
+    above or below the deleted block, leaving the file clean.
+
+    Raises FileNotFoundError if filepath does not exist.
+    Raises ValueError if creditor_name is not found in the file.
+    """
+    import os
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"No such file: {filepath}")
+
+    wb = openpyxl.load_workbook(filepath, data_only=False)
+    ws = wb.active
+
+    # Collect row indices (1-based) that belong to this creditor
+    rows_to_delete = [
+        row_idx
+        for row_idx in range(1, ws.max_row + 1)
+        if ws.cell(row=row_idx, column=1).value == creditor_name
+    ]
+
+    if not rows_to_delete:
+        raise ValueError(f"Creditor '{creditor_name}' not found in {filepath}")
+
+    # Expand deletion range to include adjacent blank separator rows.
+    # We include blank rows immediately before the block (if row > 3)
+    # and immediately after the block.
+    first = rows_to_delete[0]
+    last = rows_to_delete[-1]
+
+    # Include the blank row before the block (separator above), if any
+    if first > 4 and ws.cell(row=first - 1, column=1).value is None:
+        first -= 1
+
+    # Include the blank row after the block (separator below), if any
+    if last < ws.max_row and ws.cell(row=last + 1, column=1).value is None:
+        last += 1
+
+    # Delete rows from bottom up to avoid index shifting
+    for row_idx in range(last, first - 1, -1):
+        ws.delete_rows(row_idx)
+
+    wb.save(filepath)
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------

@@ -247,3 +247,48 @@ class TestSyncRoute:
              patch("app.create_calendar_events", return_value=[]):
             response = client.get("/sync")
         assert b"0" in response.data
+
+
+# ---------------------------------------------------------------------------
+# POST /delete-settlement
+# ---------------------------------------------------------------------------
+
+class TestDeleteSettlementRoute:
+
+    def test_post_redirects_to_index(self, client):
+        with patch("app.remove_creditor"):
+            response = client.post("/delete-settlement",
+                                   data={"creditor_name": "Bank A"})
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/")
+
+    def test_remove_creditor_called_with_name(self, client):
+        with patch("app.remove_creditor") as mock_remove:
+            client.post("/delete-settlement", data={"creditor_name": "Bank A"})
+        mock_remove.assert_called_once()
+        assert mock_remove.call_args.args[0] == "Bank A"
+
+    def test_success_flash_message_shown(self, client):
+        with patch("app.remove_creditor"), \
+             patch("app.load_payments", return_value=[]):
+            response = client.post("/delete-settlement",
+                                   data={"creditor_name": "Bank A"},
+                                   follow_redirects=True)
+        assert response.status_code == 200
+
+    def test_nonexistent_creditor_redirects_with_error(self, client):
+        with patch("app.remove_creditor",
+                   side_effect=ValueError("Bank Z not found")):
+            response = client.post("/delete-settlement",
+                                   data={"creditor_name": "Bank Z"})
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("/")
+
+    def test_missing_creditor_name_returns_400(self, client):
+        response = client.post("/delete-settlement", data={})
+        assert response.status_code == 400
+
+    def test_remove_creditor_called_with_correct_filepath(self, client):
+        with patch("app.remove_creditor") as mock_remove:
+            client.post("/delete-settlement", data={"creditor_name": "Bank A"})
+        assert mock_remove.call_args.args[1] == "does_not_matter.xlsx"
