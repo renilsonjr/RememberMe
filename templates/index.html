@@ -101,6 +101,12 @@
       white-space: nowrap;
     }
 
+    /* Monthly total summary */
+    .monthly-summary-wrap { overflow-x: auto; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-top: 0.75rem; }
+    .monthly-summary-wrap table { font-size: 0.875rem; }
+    tr.current-month td { font-weight: 700; background: #fff8e1; }
+    tr.current-month:hover td { background: #fff3cd; }
+
     /* Add-settlement form */
     .card {
       background: #fff;
@@ -246,6 +252,29 @@
   </div>
   {% else %}
   <div class="empty-state">No payment data found. Add your first settlement below.</div>
+  {% endif %}
+
+  <!-- Monthly Total Summary -->
+  {% if monthly %}
+  <h2 style="margin-top: 2rem;">Monthly Total Summary</h2>
+  <div class="monthly-summary-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th>Total Due</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in monthly %}
+        <tr class="{% if loop.first %}current-month{% endif %}">
+          <td>{{ entry.month }}</td>
+          <td>${{ "%.2f"|format(entry.total) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% endif %}
 
   <!-- Add New Settlement -->

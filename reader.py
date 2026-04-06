@@ -62,6 +62,28 @@ def get_upcoming_payments(payments: list[dict], days: int = 14) -> list[dict]:
     return [p for p in payments if today <= p["due_date"] <= cutoff]
 
 
+def get_monthly_summary(payments: list[dict]) -> list[dict]:
+    """
+    Group future payments (due_date >= today) by calendar month.
+
+    Returns a list of dicts sorted chronologically, each with:
+      month  — label like "April 2026"
+      total  — sum of all amounts due that month
+    """
+    today = date.today()
+    buckets: dict[tuple, float] = {}
+    for p in payments:
+        if p["due_date"] < today:
+            continue
+        key = (p["due_date"].year, p["due_date"].month)
+        buckets[key] = round(buckets.get(key, 0.0) + p["amount"], 2)
+
+    return [
+        {"month": date(year, month, 1).strftime("%B %Y"), "total": total}
+        for (year, month), total in sorted(buckets.items())
+    ]
+
+
 def is_paid_off(payments: list[dict], creditor: str) -> bool:
     """
     Return True if the last payment for the given creditor has balance_after == 0.

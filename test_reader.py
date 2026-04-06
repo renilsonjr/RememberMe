@@ -1,7 +1,7 @@
 import pytest
 from datetime import date, timedelta
 from unittest.mock import patch, MagicMock
-from reader import load_payments, get_upcoming_payments, is_paid_off
+from reader import load_payments, get_upcoming_payments, is_paid_off, get_monthly_summary
 
 
 # ---------------------------------------------------------------------------
@@ -228,3 +228,91 @@ class TestIsPaidOff:
             }
         ]
         assert is_paid_off(payments, "Store Card") is True
+
+
+# ---------------------------------------------------------------------------
+# get_monthly_summary
+# ---------------------------------------------------------------------------
+
+MONTHLY_PAYMENTS = [
+    {
+        "creditor": "Bank A",
+        "payment_num": 1,
+        "amount": 200.0,
+        "due_date": date(2026, 4, 10),
+        "balance_before": 1000.0,
+        "balance_after": 800.0,
+    },
+    {
+        "creditor": "Credit Union B",
+        "payment_num": 1,
+        "amount": 150.0,
+        "due_date": date(2026, 4, 20),
+        "balance_before": 500.0,
+        "balance_after": 350.0,
+    },
+    {
+        "creditor": "Bank A",
+        "payment_num": 2,
+        "amount": 200.0,
+        "due_date": date(2026, 5, 10),
+        "balance_before": 800.0,
+        "balance_after": 600.0,
+    },
+    {
+        # Past payment — must be excluded
+        "creditor": "Old Debt",
+        "payment_num": 1,
+        "amount": 99.0,
+        "due_date": date(2026, 4, 1),
+        "balance_before": 99.0,
+        "balance_after": 0.0,
+    },
+]
+
+
+class TestGetMonthlySummary:
+
+    def test_returns_list(self):
+        result = get_monthly_summary(MONTHLY_PAYMENTS)
+        assert isinstance(result, list)
+
+    def test_correct_number_of_months(self):
+        result = get_monthly_summary(MONTHLY_PAYMENTS)
+        assert len(result) == 2  # April and May only (past row excluded)
+
+    def test_each_entry_has_month_and_total_keys(self):
+        result = get_monthly_summary(MONTHLY_PAYMENTS)
+        for entry in result:
+            assert "month" in entry
+            assert "total" in entry
+
+    def test_months_in_chronological_order(self):
+        result = get_monthly_summary(MONTHLY_PAYMENTS)
+        assert result[0]["month"] == "April 2026"
+        assert result[1]["month"] == "May 2026"
+
+    def test_total_per_month_correct(self):
+        result = get_monthly_summary(MONTHLY_PAYMENTS)
+        april = next(r for r in result if r["month"] == "April 2026")
+        assert april["total"] == pytest.approx(350.0)  # 200 + 150
+
+    def test_may_total_correct(self):
+        result = get_monthly_summary(MONTHLY_PAYMENTS)
+        may = next(r for r in result if r["month"] == "May 2026")
+        assert may["total"] == pytest.approx(200.0)
+
+    def test_excludes_past_payments(self):
+        result = get_monthly_summary(MONTHLY_PAYMENTS)
+        months = [r["month"] for r in result]
+        # Old Debt is in April 1 (past) — but April still appears for future rows
+        # The past payment's amount (99.0) must NOT be included in April's total
+        april = next(r for r in result if r["month"] == "April 2026")
+        assert april["total"] == pytest.approx(350.0)  # not 449.0
+
+    def test_all_past_returns_empty(self):
+        past = [{**MONTHLY_PAYMENTS[0], "due_date": date(2026, 1, 1)}]
+        assert get_monthly_summary(past) == []
+
+    def test_empty_input_returns_empty(self):
+        assert get_monthly_summary([]) == []

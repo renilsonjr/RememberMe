@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 
 from flask import Flask, render_template, request, redirect, url_for, flash
 
-from reader import load_payments, get_upcoming_payments
+from reader import load_payments, get_upcoming_payments, get_monthly_summary
 from calendar_events import create_calendar_events
 from excel_writer import generate_payment_rows, append_to_excel, remove_creditor
 
@@ -73,7 +73,8 @@ def build_creditor_summaries(payments: list[dict]) -> list[dict]:
 def index():
     payments = load_payments(app.config["XLSX_FILE"])
     summaries = build_creditor_summaries(payments)
-    return render_template("index.html", summaries=summaries)
+    monthly = get_monthly_summary(payments)
+    return render_template("index.html", summaries=summaries, monthly=monthly)
 
 
 @app.route("/add-settlement", methods=["POST"])
