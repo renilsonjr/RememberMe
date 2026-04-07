@@ -214,10 +214,10 @@
       </thead>
       <tbody>
         {% for s in summaries %}
-        <tr class="{% if s.paid_off %}paid-off{% elif s.due_soon %}due-soon{% endif %}">
+        <tr class="{% if s.paid_off %}paid-off{% elif s.days_until_due is not none and s.days_until_due <= 14 %}due-soon{% endif %}">
           <td>
             <span class="creditor-name">{{ s.creditor }}</span>
-            {% if s.due_soon and not s.paid_off %}
+            {% if s.days_until_due is not none and s.days_until_due <= 14 and not s.paid_off %}
               <span class="badge-soon">⚠️ Due soon</span>
             {% endif %}
           </td>
@@ -227,12 +227,12 @@
           <td>
             {% if s.next_amount %}${{ "%.2f"|format(s.next_amount) }}{% else %}—{% endif %}
           </td>
-          <td>${{ "%.2f"|format(s.balance) }}</td>
-          <td>{{ s.payments_left }}</td>
+          <td>${{ "%.2f"|format(s.current_balance) }}</td>
+          <td>{{ s.payments_remaining }}</td>
           <td>
             {% if s.paid_off %}
               <span class="badge-paid">✅ PAID OFF</span>
-            {% elif s.due_soon %}
+            {% elif s.days_until_due is not none and s.days_until_due <= 14 %}
               <strong>Due soon</strong>
             {% else %}
               Upcoming
@@ -268,8 +268,8 @@
       <tbody>
         {% for entry in monthly %}
         <tr class="{% if loop.first %}current-month{% endif %}">
-          <td>{{ entry.month }}</td>
-          <td>${{ "%.2f"|format(entry.total) }}</td>
+          <td>{{ entry.month_label }}</td>
+          <td>${{ "%.2f"|format(entry.total_due) }}</td>
         </tr>
         {% endfor %}
       </tbody>

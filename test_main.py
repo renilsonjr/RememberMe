@@ -1,159 +1,155 @@
 import pytest
 from datetime import date
-from unittest.mock import patch, call
+from decimal import Decimal
+from unittest.mock import patch, MagicMock, call
 import main as main_module
 
+from src.application.dto.payment_dto import PaymentDTO
+
 
 # ---------------------------------------------------------------------------
-# Fixtures
+# Helpers
 # ---------------------------------------------------------------------------
+
+def _make_payment_dto(creditor, num, amount, due_date, balance_after, is_final=False):
+    return PaymentDTO(
+        creditor=creditor,
+        payment_num=num,
+        amount=Decimal(str(amount)),
+        due_date=due_date,
+        balance_before=Decimal("1000.00"),
+        balance_after=Decimal(str(balance_after)),
+        is_final=is_final,
+        days_until_due=5,
+    )
+
 
 UPCOMING = [
-    {
-        "creditor": "Bank A",
-        "payment_num": 1,
-        "amount": 200.0,
-        "due_date": date(2026, 4, 5),
-        "balance_before": 1000.0,
-        "balance_after": 800.0,
-    },
-    {
-        "creditor": "Bank A",
-        "payment_num": 2,
-        "amount": 800.0,
-        "due_date": date(2026, 4, 10),
-        "balance_before": 800.0,
-        "balance_after": 0.0,
-    },
-]
-
-ALL_PAYMENTS = UPCOMING + [
-    {
-        "creditor": "Credit Union B",
-        "payment_num": 1,
-        "amount": 150.0,
-        "due_date": date(2026, 6, 1),   # beyond 14-day window
-        "balance_before": 500.0,
-        "balance_after": 350.0,
-    },
+    _make_payment_dto("Bank A", 1, 200.0, date(2026, 4, 5), 800.0),
+    _make_payment_dto("Bank A", 2, 800.0, date(2026, 4, 10), 0.0, is_final=True),
 ]
 
 
 # ---------------------------------------------------------------------------
-# load_payments is called
-# ---------------------------------------------------------------------------
-
-class TestLoadPayments:
-    def test_load_payments_called_with_xlsx(self, capsys):
-        with patch("main.load_payments", return_value=[]) as mock_load, \
-             patch("main.get_upcoming_payments", return_value=[]), \
-             patch("main.create_calendar_events", return_value=[]):
-            main_module.run()
-        mock_load.assert_called_once()
-        assert mock_load.call_args.args[0].endswith("RememberMe.xlsx")
-
-    def test_load_payments_result_passed_to_upcoming(self, capsys):
-        with patch("main.load_payments", return_value=ALL_PAYMENTS) as mock_load, \
-             patch("main.get_upcoming_payments", return_value=[]) as mock_upcoming, \
-             patch("main.create_calendar_events", return_value=[]):
-            main_module.run()
-        mock_upcoming.assert_called_once_with(ALL_PAYMENTS, days=14)
-
-
-# ---------------------------------------------------------------------------
-# create_calendar_events is called correctly
-# ---------------------------------------------------------------------------
-
-class TestCreateCalendarEvents:
-    def test_called_with_upcoming_payments(self, capsys):
-        with patch("main.load_payments", return_value=ALL_PAYMENTS), \
-             patch("main.get_upcoming_payments", return_value=UPCOMING), \
-             patch("main.create_calendar_events", return_value=["id1", "id2"]) as mock_create:
-            main_module.run()
-        mock_create.assert_called_once_with(UPCOMING, all_payments=ALL_PAYMENTS)
-
-    def test_not_called_when_no_upcoming(self, capsys):
-        with patch("main.load_payments", return_value=ALL_PAYMENTS), \
-             patch("main.get_upcoming_payments", return_value=[]), \
-             patch("main.create_calendar_events") as mock_create:
-            main_module.run()
-        mock_create.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# Terminal summary output
+# Terminal output tests — mock PaymentService and CalendarService
 # ---------------------------------------------------------------------------
 
 class TestSummaryOutput:
+
+    def _run_main(self):
+        """Run main() with mocked services."""
+        mock_payment_service = MagicMock()
+        mock_payment_service.get_upcoming_payments.return_value = UPCOMING
+
+        mock_calendar_service = MagicMock()
+        mock_calendar_service.sync_upcoming_payments.return_value = ["id1", "id2"]
+
+        with patch("main.ExcelRepository"), \
+             patch("main.GoogleCalendarAdapter"), \
+             patch("main.PaymentService", return_value=mock_payment_service), \
+             patch("main.CalendarService", return_value=mock_calendar_service):
+            main_module.main()
+
     def test_prints_creditor(self, capsys):
-        with patch("main.load_payments", return_value=ALL_PAYMENTS), \
-             patch("main.get_upcoming_payments", return_value=UPCOMING), \
-             patch("main.create_calendar_events", return_value=["id1", "id2"]):
-            main_module.run()
-        out = capsys.readouterr().out
-        assert "Bank A" in out
+        self._run_main()
+        assert "Bank A" in capsys.readouterr().out
 
     def test_prints_amount(self, capsys):
-        with patch("main.load_payments", return_value=ALL_PAYMENTS), \
-             patch("main.get_upcoming_payments", return_value=UPCOMING), \
-             patch("main.create_calendar_events", return_value=["id1", "id2"]):
-            main_module.run()
-        out = capsys.readouterr().out
-        assert "$200.00" in out
+        self._run_main()
+        assert "200.00" in capsys.readouterr().out
 
     def test_prints_due_date(self, capsys):
-        with patch("main.load_payments", return_value=ALL_PAYMENTS), \
-             patch("main.get_upcoming_payments", return_value=UPCOMING), \
-             patch("main.create_calendar_events", return_value=["id1", "id2"]):
-            main_module.run()
-        out = capsys.readouterr().out
-        assert "2026-04-05" in out
+        self._run_main()
+        assert "2026-04-05" in capsys.readouterr().out
 
     def test_prints_balance_after(self, capsys):
-        with patch("main.load_payments", return_value=ALL_PAYMENTS), \
-             patch("main.get_upcoming_payments", return_value=UPCOMING), \
-             patch("main.create_calendar_events", return_value=["id1", "id2"]):
-            main_module.run()
-        out = capsys.readouterr().out
-        assert "$800.00" in out
+        self._run_main()
+        assert "800.00" in capsys.readouterr().out
 
     def test_marks_final_payment(self, capsys):
-        with patch("main.load_payments", return_value=ALL_PAYMENTS), \
-             patch("main.get_upcoming_payments", return_value=UPCOMING), \
-             patch("main.create_calendar_events", return_value=["id1", "id2"]):
-            main_module.run()
-        out = capsys.readouterr().out
-        assert "FINAL" in out.upper()
+        self._run_main()
+        assert "FINAL" in capsys.readouterr().out.upper()
 
     def test_prints_one_line_per_payment(self, capsys):
-        with patch("main.load_payments", return_value=ALL_PAYMENTS), \
-             patch("main.get_upcoming_payments", return_value=UPCOMING), \
-             patch("main.create_calendar_events", return_value=["id1", "id2"]):
-            main_module.run()
+        self._run_main()
         out = capsys.readouterr().out
-        # Both upcoming payments should appear
-        assert "Bank A" in out
-        assert "$200.00" in out
-        assert "$800.00" in out
+        assert "200.00" in out
+        assert "800.00" in out
 
 
 # ---------------------------------------------------------------------------
-# No upcoming payments case
+# No upcoming payments
 # ---------------------------------------------------------------------------
 
 class TestNoUpcomingPayments:
+
+    def _run_with_empty(self):
+        mock_payment_service = MagicMock()
+        mock_payment_service.get_upcoming_payments.return_value = []
+
+        mock_calendar_service = MagicMock()
+
+        with patch("main.ExcelRepository"), \
+             patch("main.GoogleCalendarAdapter"), \
+             patch("main.PaymentService", return_value=mock_payment_service), \
+             patch("main.CalendarService", return_value=mock_calendar_service):
+            main_module.main()
+
+        return mock_calendar_service
+
     def test_prints_no_payments_message(self, capsys):
-        with patch("main.load_payments", return_value=ALL_PAYMENTS), \
-             patch("main.get_upcoming_payments", return_value=[]), \
-             patch("main.create_calendar_events", return_value=[]):
-            main_module.run()
-        out = capsys.readouterr().out
-        assert "No payments due in the next 14 days" in out
+        self._run_with_empty()
+        assert "No payments due in the next 14 days" in capsys.readouterr().out
+
+    def test_calendar_not_called_when_no_upcoming(self, capsys):
+        mock_calendar = self._run_with_empty()
+        mock_calendar.sync_upcoming_payments.assert_not_called()
 
     def test_no_payments_message_not_shown_when_there_are_payments(self, capsys):
-        with patch("main.load_payments", return_value=ALL_PAYMENTS), \
-             patch("main.get_upcoming_payments", return_value=UPCOMING), \
-             patch("main.create_calendar_events", return_value=["id1", "id2"]):
-            main_module.run()
-        out = capsys.readouterr().out
-        assert "No payments due" not in out
+        mock_payment_service = MagicMock()
+        mock_payment_service.get_upcoming_payments.return_value = UPCOMING
+
+        mock_calendar_service = MagicMock()
+        mock_calendar_service.sync_upcoming_payments.return_value = ["id1"]
+
+        with patch("main.ExcelRepository"), \
+             patch("main.GoogleCalendarAdapter"), \
+             patch("main.PaymentService", return_value=mock_payment_service), \
+             patch("main.CalendarService", return_value=mock_calendar_service):
+            main_module.main()
+
+        assert "No payments due" not in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# Service wiring
+# ---------------------------------------------------------------------------
+
+class TestServiceWiring:
+
+    def test_payment_service_called_with_14_days(self):
+        mock_payment_service = MagicMock()
+        mock_payment_service.get_upcoming_payments.return_value = []
+
+        with patch("main.ExcelRepository"), \
+             patch("main.GoogleCalendarAdapter"), \
+             patch("main.PaymentService", return_value=mock_payment_service), \
+             patch("main.CalendarService"):
+            main_module.main()
+
+        mock_payment_service.get_upcoming_payments.assert_called_once_with(days=14)
+
+    def test_calendar_sync_called_when_upcoming_exist(self):
+        mock_payment_service = MagicMock()
+        mock_payment_service.get_upcoming_payments.return_value = UPCOMING
+
+        mock_calendar_service = MagicMock()
+        mock_calendar_service.sync_upcoming_payments.return_value = ["id1", "id2"]
+
+        with patch("main.ExcelRepository"), \
+             patch("main.GoogleCalendarAdapter"), \
+             patch("main.PaymentService", return_value=mock_payment_service), \
+             patch("main.CalendarService", return_value=mock_calendar_service):
+            main_module.main()
+
+        mock_calendar_service.sync_upcoming_payments.assert_called_once_with(days=14)

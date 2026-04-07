@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+import calendar as _calendar
 
 
 @dataclass
@@ -52,3 +53,8 @@ class MonthlySummaryDTO:
     month: int
     total_due: Decimal
     total_paid: int
+
+    @property
+    def month_label(self) -> str:
+        """Human-readable label like 'April 2026'."""
+        return f"{_calendar.month_name[self.month]} {self.year}"

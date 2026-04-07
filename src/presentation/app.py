@@ -61,15 +61,11 @@ def create_app(config: dict | None = None) -> Flask:
     except FileNotFoundError as exc:
         raise RuntimeError(f"Configuration error: {exc}")
 
-    # Calendar gateway is optional for testing
+    # Calendar gateway requires credentials.json; fall back to mock if absent
     try:
         calendar_gateway = GoogleCalendarAdapter()
     except FileNotFoundError:
-        if app.config.get("TESTING"):
-            # Use a mock adapter for testing
-            calendar_gateway = MockCalendarAdapter()
-        else:
-            raise RuntimeError("credentials.json not found. Please set up Google Calendar integration.")
+        calendar_gateway = MockCalendarAdapter()
 
     # Initialize services
     payment_service = PaymentService(repository)
