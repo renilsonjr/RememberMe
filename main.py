@@ -1,15 +1,33 @@
-# Run with: python3 main.py
+#!/usr/bin/env python3
+"""
+Terminal calendar sync for RememberMe debt tracker.
+
+Run with: python3 main.py
+
+Displays upcoming payments and syncs them to Google Calendar.
+"""
 
 import os
-from reader import load_payments, get_upcoming_payments
-from calendar_events import create_calendar_events
+from src.infrastructure.repositories.excel_repository import ExcelRepository
+from src.infrastructure.calendar.google_calendar_adapter import GoogleCalendarAdapter
+from src.application.services.payment_service import PaymentService
+from src.application.services.calendar_service import CalendarService
 
-XLSX_FILE = os.path.join(os.path.dirname(__file__), "RememberMe.xlsx")
 
+def main():
+    """Run the terminal interface."""
+    xlsx_file = os.path.join(os.path.dirname(__file__), "RememberMe.xlsx")
 
-def run():
-    payments = load_payments(XLSX_FILE)
-    upcoming = get_upcoming_payments(payments, days=14)
+    # Initialize infrastructure
+    repository = ExcelRepository(xlsx_file)
+    calendar_gateway = GoogleCalendarAdapter()
+
+    # Initialize services
+    payment_service = PaymentService(repository)
+    calendar_service = CalendarService(repository, calendar_gateway)
+
+    # Get upcoming payments
+    upcoming = payment_service.get_upcoming_payments(days=14)
 
     if not upcoming:
         print("No payments due in the next 14 days.")
@@ -19,20 +37,17 @@ def run():
     print("-" * 52)
 
     for p in upcoming:
-        is_final = p["balance_after"] == 0.0
-        final_tag = "  ← FINAL PAYMENT" if is_final else ""
+        final_tag = "  ← FINAL PAYMENT" if p.is_final else ""
         print(
-            f"  {p['creditor']}"
-            f"  |  ${p['amount']:.2f} due {p['due_date']}"
-            f"  |  Balance after: ${p['balance_after']:.2f}"
-            f"{final_tag}"
+            f"  {p.creditor:<12} | ${p.amount:>7.2f} due {p.due_date} "
+            f"| Balance after: ${p.balance_after:>9.2f}{final_tag}"
         )
 
     print("-" * 52)
     print("Creating Google Calendar events...")
-    event_ids = create_calendar_events(upcoming, all_payments=payments)
+    event_ids = calendar_service.sync_upcoming_payments(days=14)
     print(f"✅ {len(event_ids)} event(s) created.")
 
 
 if __name__ == "__main__":
-    run()
+    main()
