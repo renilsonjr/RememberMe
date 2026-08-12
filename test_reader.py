@@ -234,12 +234,32 @@ class TestIsPaidOff:
 # get_monthly_summary
 # ---------------------------------------------------------------------------
 
+_today = date.today()
+
+
+def _first_of_month(months_ahead: int) -> date:
+    """First day of the month `months_ahead` months after today's month.
+
+    Anchoring on the 1st (rather than offsetting `_today` by raw days)
+    keeps bucket membership correct no matter what day of the month the
+    suite runs on — no risk of an offset accidentally spilling into the
+    next calendar month.
+    """
+    total = _today.month - 1 + months_ahead
+    year = _today.year + total // 12
+    month = total % 12 + 1
+    return date(year, month, 1)
+
+
+_MONTH_1 = _first_of_month(2)  # comfortably future; full month available
+_MONTH_2 = _first_of_month(3)  # the month right after _MONTH_1
+
 MONTHLY_PAYMENTS = [
     {
         "creditor": "Bank A",
         "payment_num": 1,
         "amount": 200.0,
-        "due_date": date(2026, 4, 10),
+        "due_date": _MONTH_1 + timedelta(days=9),  # 10th of _MONTH_1
         "balance_before": 1000.0,
         "balance_after": 800.0,
     },
@@ -247,7 +267,7 @@ MONTHLY_PAYMENTS = [
         "creditor": "Credit Union B",
         "payment_num": 1,
         "amount": 150.0,
-        "due_date": date(2026, 4, 20),
+        "due_date": _MONTH_1 + timedelta(days=19),  # 20th of _MONTH_1
         "balance_before": 500.0,
         "balance_after": 350.0,
     },
@@ -255,7 +275,7 @@ MONTHLY_PAYMENTS = [
         "creditor": "Bank A",
         "payment_num": 2,
         "amount": 200.0,
-        "due_date": date(2026, 5, 10),
+        "due_date": _MONTH_2 + timedelta(days=9),  # 10th of _MONTH_2
         "balance_before": 800.0,
         "balance_after": 600.0,
     },
@@ -264,7 +284,7 @@ MONTHLY_PAYMENTS = [
         "creditor": "Old Debt",
         "payment_num": 1,
         "amount": 99.0,
-        "due_date": date(2026, 4, 1),
+        "due_date": _today - timedelta(days=30),
         "balance_before": 99.0,
         "balance_after": 0.0,
     },
@@ -279,7 +299,7 @@ class TestGetMonthlySummary:
 
     def test_correct_number_of_months(self):
         result = get_monthly_summary(MONTHLY_PAYMENTS)
-        assert len(result) == 2  # April and May only (past row excluded)
+        assert len(result) == 2  # _MONTH_1 and _MONTH_2 only (past row excluded)
 
     def test_each_entry_has_month_and_total_keys(self):
         result = get_monthly_summary(MONTHLY_PAYMENTS)
@@ -289,29 +309,28 @@ class TestGetMonthlySummary:
 
     def test_months_in_chronological_order(self):
         result = get_monthly_summary(MONTHLY_PAYMENTS)
-        assert result[0]["month"] == "April 2026"
-        assert result[1]["month"] == "May 2026"
+        assert result[0]["month"] == _MONTH_1.strftime("%B %Y")
+        assert result[1]["month"] == _MONTH_2.strftime("%B %Y")
 
     def test_total_per_month_correct(self):
         result = get_monthly_summary(MONTHLY_PAYMENTS)
-        april = next(r for r in result if r["month"] == "April 2026")
-        assert april["total"] == pytest.approx(350.0)  # 200 + 150
+        month_1 = next(r for r in result if r["month"] == _MONTH_1.strftime("%B %Y"))
+        assert month_1["total"] == pytest.approx(350.0)  # 200 + 150
 
     def test_may_total_correct(self):
         result = get_monthly_summary(MONTHLY_PAYMENTS)
-        may = next(r for r in result if r["month"] == "May 2026")
-        assert may["total"] == pytest.approx(200.0)
+        month_2 = next(r for r in result if r["month"] == _MONTH_2.strftime("%B %Y"))
+        assert month_2["total"] == pytest.approx(200.0)
 
     def test_excludes_past_payments(self):
         result = get_monthly_summary(MONTHLY_PAYMENTS)
-        months = [r["month"] for r in result]
-        # Old Debt is in April 1 (past) — but April still appears for future rows
-        # The past payment's amount (99.0) must NOT be included in April's total
-        april = next(r for r in result if r["month"] == "April 2026")
-        assert april["total"] == pytest.approx(350.0)  # not 449.0
+        # Old Debt is 30 days in the past — its amount must NOT be included
+        # in any bucket's total.
+        month_1 = next(r for r in result if r["month"] == _MONTH_1.strftime("%B %Y"))
+        assert month_1["total"] == pytest.approx(350.0)  # not 449.0
 
     def test_all_past_returns_empty(self):
-        past = [{**MONTHLY_PAYMENTS[0], "due_date": date(2026, 1, 1)}]
+        past = [{**MONTHLY_PAYMENTS[0], "due_date": _today - timedelta(days=365)}]
         assert get_monthly_summary(past) == []
 
     def test_empty_input_returns_empty(self):
